@@ -1,0 +1,8 @@
+{
+  "name": "Finance Tracker",
+  "description": "Personal finance manager for LKR budgets, transactions, analytics, and savings goals.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

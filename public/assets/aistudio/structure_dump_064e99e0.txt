@@ -1,0 +1,46 @@
+Sheets: ['Read Me', 'Dashboard', 'Transactions', 'Budget', 'Savings Goals']
+
+=== Sheet: Read Me | MaxRow: 11 | MaxCol: 2 ===
+  R1: ['HOW TO USE THIS WORKBOOK', None]
+  R3: ['Transactions tab', 'Log every income/expense here: Date, Description, Category, Type (Income/Expense), Amount. Category and Type have dropdowns. The Month column fills in automatically.']
+  R5: ['Dashboard tab', "Auto-updates from Transactions. Use the Month dropdown (cell B3) to filter, or leave on 'All' to see everything to date."]
+  R7: ['Budget tab', 'Blue/yellow cells (Monthly Budget) are for you to edit. Actual Spent and Remaining update automatically from Transactions.']
+  R9: ['Savings Goals tab', 'Blue/yellow cells (Target Amount, Saved So Far, Target Date) are for you to edit. Track progress toward each goal.']
+
+=== Sheet: Dashboard | MaxRow: 22 | MaxCol: 6 ===
+  R1: ['PERSONAL FINANCE DASHBOARD', None, None, None, None, None]
+  R3: ['Select Month:', 46023, "(type a month like Jan-2026, or 'All' for everything)", None, None, None]
+  R5: ['Total Income', '=IF($B$3="All",SUMIF(Transactions!$D:$D,"Income",Transactions!$E:$E),SUMIFS(Transactions!$E:$E,Transactions!$D:$D,"Income",Transactions!$F:$F,$B$3))', None, None, None, None]
+  R6: ['Total Expenses', '=IF($B$3="All",SUMIF(Transactions!$D:$D,"Expense",Transactions!$E:$E),SUMIFS(Transactions!$E:$E,Transactions!$D:$D,"Expense",Transactions!$F:$F,$B$3))', None, None, None, None]
+  R7: ['Net Savings', '=B5-B6', None, None, None, None]
+  R8: ['Savings Rate', '=IFERROR(B7/B5,0)', None, None, None, None]
+  R10: ['SPENDING BY CATEGORY', None, None, None, None, None]
+
+=== Sheet: Transactions | MaxRow: 203 | MaxCol: 8 ===
+  R1: [' ', None, None, None, None, None, None, None]
+  R3: ['Date', 'Description', 'Category', 'Type', 'Amount', 'Month', None, None]
+  R4: [datetime.datetime(2026, 8, 6, 0, 0), 'Monthly Salary (intake -01)', 'Salary', 'Income', 17600, '=TEXT(A4,"MMM-YYYY")', None, None]
+  R5: [datetime.datetime(2026, 8, 7, 0, 0), 'kandy travel', 'Dining Out', 'Expense', 5000, '=TEXT(A5,"MMM-YYYY")', None, None]
+  R6: [datetime.datetime(2026, 8, 8, 0, 0), 'hand bill', 'Other', 'Expense', 8600, '=TEXT(A6,"MMM-YYYY")', None, None]
+  R7: [datetime.datetime(2026, 8, 9, 0, 0), 'Release animal', 'Other', 'Expense', 2000, '=TEXT(A7,"MMM-YYYY")', None, None]
+  R8: [datetime.datetime(2026, 8, 10, 0, 0), 'saving', 'Savings/Investment', 'Income', 1500, '=TEXT(A8,"MMM-YYYY")', None, None]
+  R9: [datetime.datetime(2026, 8, 11, 0, 0), 'petrol', 'Transport', 'Expense', 500, '=IF(A9="","",TEXT(A9,"MMM-YYYY"))', None, None]
+  R10: [None, None, None, None, None, '=IF(A10="","",TEXT(A10,"MMM-YYYY"))', None, None]
+
+=== Sheet: Budget | MaxRow: 21 | MaxCol: 5 ===
+  R1: ['MONTHLY BUDGET', None, None, None, None]
+  R3: ['Select Month:', 46174, None, None, None]
+  R5: ['Category', 'Monthly Budget', 'Actual Spent', 'Remaining', '% Used']
+  R6: ['Housing/Rent', 1000, '=IF($B$3="All",SUMIFS(Transactions!$E:$E,Transactions!$D:$D,"Expense",Transactions!$C:$C,$A6),SUMIFS(Transactions!$E:$E,Transactions!$D:$D,"Expense",Transactions!$C:$C,$A6,Transactions!$F:$F,$B$3))', '=B6-C6', '=IFERROR(C6/B6,0)']
+  R7: ['Groceries', 400, '=IF($B$3="All",SUMIFS(Transactions!$E:$E,Transactions!$D:$D,"Expense",Transactions!$C:$C,$A7),SUMIFS(Transactions!$E:$E,Transactions!$D:$D,"Expense",Transactions!$C:$C,$A7,Transactions!$F:$F,$B$3))', '=B7-C7', '=IFERROR(C7/B7,0)']
+  R8: ['Transport', 150, '=IF($B$3="All",SUMIFS(Transactions!$E:$E,Transactions!$D:$D,"Expense",Transactions!$C:$C,$A8),SUMIFS(Transactions!$E:$E,Transactions!$D:$D,"Expense",Transactions!$C:$C,$A8,Transactions!$F:$F,$B$3))', '=B8-C8', '=IFERROR(C8/B8,0)']
+  R9: ['Utilities', 150, '=IF($B$3="All",SUMIFS(Transactions!$E:$E,Transactions!$D:$D,"Expense",Transactions!$C:$C,$A9),SUMIFS(Transactions!$E:$E,Transactions!$D:$D,"Expense",Transactions!$C:$C,$A9,Transactions!$F:$F,$B$3))', '=B9-C9', '=IFERROR(C9/B9,0)']
+  R10: ['Entertainment', 100, '=IF($B$3="All",SUMIFS(Transactions!$E:$E,Transactions!$D:$D,"Expense",Transactions!$C:$C,$A10),SUMIFS(Transactions!$E:$E,Transactions!$D:$D,"Expense",Transactions!$C:$C,$A10,Transactions!$F:$F,$B$3))', '=B10-C10', '=IFERROR(C10/B10,0)']
+
+=== Sheet: Savings Goals | MaxRow: 12 | MaxCol: 7 ===
+  R1: ['SAVINGS GOALS', None, None, None, None, None, None]
+  R3: ['Goal', 'Target Amount', 'Saved So Far', 'Remaining', '% Complete', 'Target Date', None]
+  R4: ['Emergency Fund', 1000, 100, '=B4-C4', '=IFERROR(C4/B4,0)', '2026-12-31', None]
+  R5: ['Vacation', 1500, 300, '=B5-C5', '=IFERROR(C5/B5,0)', '2026-08-31', None]
+  R6: ['New Laptop', 1200, 400, '=B6-C6', '=IFERROR(C6/B6,0)', '2026-10-31', None]
+
