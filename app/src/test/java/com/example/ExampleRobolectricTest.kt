@@ -98,4 +98,31 @@ class ExampleRobolectricTest {
         assertTrue(repository.observeAllTransactions().first().isEmpty())
         assertTrue(repository.observeActiveCategories().first().isEmpty())
     }
+
+    @Test
+    fun `sample data exports non-empty csv excel and json and restores with bom`() = runTest {
+        repository.loadSampleWorkbookData(2026, "Aug")
+        val snapshot = repository.getExportSnapshot()
+        assertTrue(snapshot.categories.isNotEmpty())
+        assertTrue(snapshot.transactions.isNotEmpty())
+        assertTrue(snapshot.budgets.isNotEmpty())
+        assertTrue(snapshot.goals.isNotEmpty())
+
+        val csv = BackupExportManager.generateCsv(snapshot)
+        assertTrue(csv.toByteArray(Charsets.UTF_8).isNotEmpty())
+        assertTrue(csv.contains("Monthly Salary"))
+
+        val excel = BackupExportManager.generateExcelSpreadsheetXml(snapshot)
+        assertTrue(excel.toByteArray(Charsets.UTF_8).isNotEmpty())
+        assertTrue(excel.contains("<Worksheet ss:Name=\"Transactions\">"))
+        assertTrue(excel.contains("<Worksheet ss:Name=\"Budget\">"))
+        assertTrue(excel.contains("<Worksheet ss:Name=\"Savings Goals\">"))
+
+        val jsonWithBom = "\uFEFF" + BackupExportManager.generateBackupJson(snapshot)
+        val parsed = BackupExportManager.parseBackupJson(jsonWithBom)
+        assertEquals(snapshot.transactions.size, parsed.transactions.size)
+        assertEquals(snapshot.categories.size, parsed.categories.size)
+        assertEquals(snapshot.budgets.size, parsed.budgets.size)
+        assertEquals(snapshot.goals.size, parsed.goals.size)
+    }
 }

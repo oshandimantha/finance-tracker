@@ -173,7 +173,12 @@ object BackupExportManager {
     }
 
     fun parseBackupJson(jsonString: String): BackupSnapshot {
-        val root = JSONObject(jsonString)
+        val cleaned = jsonString.trimStart('\uFEFF').trim()
+        require(cleaned.isNotEmpty()) { "Backup file is empty (0 bytes)" }
+        val root = JSONObject(cleaned)
+        require(root.has("categories") && root.has("transactions")) {
+            "Not a valid Finance Tracker backup file"
+        }
 
         val catsJson = root.getJSONArray("categories")
         val categories = buildList {
@@ -213,7 +218,7 @@ object BackupExportManager {
             }
         }
 
-        val budgetJson = root.getJSONArray("budgets")
+        val budgetJson = root.optJSONArray("budgets") ?: JSONArray()
         val budgets = buildList {
             for (i in 0 until budgetJson.length()) {
                 val obj = budgetJson.getJSONObject(i)
@@ -229,7 +234,7 @@ object BackupExportManager {
             }
         }
 
-        val goalJson = root.getJSONArray("goals")
+        val goalJson = root.optJSONArray("goals") ?: JSONArray()
         val goals = buildList {
             for (i in 0 until goalJson.length()) {
                 val obj = goalJson.getJSONObject(i)
@@ -272,7 +277,14 @@ object BackupExportManager {
     }
 
     private fun escapeXml(input: String): String {
-        return input
+        val sanitized = buildString(input.length) {
+            for (ch in input) {
+                if (ch == '\t' || ch == '\n' || ch == '\r' || ch >= ' ') {
+                    append(ch)
+                }
+            }
+        }
+        return sanitized
             .replace("&", "&amp;")
             .replace("<", "&lt;")
             .replace(">", "&gt;")

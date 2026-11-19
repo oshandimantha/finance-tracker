@@ -99,16 +99,17 @@ class MainActivity : ComponentActivity() {
                     onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
                 }
 
-                if (appLockEnabled && !isUnlocked) {
-                    AppLockOverlay(
-                        appName = appName,
-                        onUnlocked = { isUnlocked = true }
-                    )
-                } else {
+                Box(modifier = Modifier.fillMaxSize()) {
                     OshanFinanceApp(
                         viewModel = financeViewModel,
                         settingsViewModel = settingsViewModel
                     )
+                    if (appLockEnabled && !isUnlocked) {
+                        AppLockOverlay(
+                            appName = appName,
+                            onUnlocked = { isUnlocked = true }
+                        )
+                    }
                 }
             }
         }

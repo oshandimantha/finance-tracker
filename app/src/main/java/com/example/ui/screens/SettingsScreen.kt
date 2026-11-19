@@ -122,10 +122,17 @@ fun SettingsScreen(
         contract = ActivityResultContracts.CreateDocument("text/csv")
     ) { uri: Uri? ->
         if (uri != null) {
+            val appContext = context.applicationContext
             scope.launch {
-                val content = onBuildCsv()
-                val ok = writeTextToUri(context, uri, content)
-                onNotifyMessage(if (ok) "Exported transactions to CSV" else "Failed to write CSV file")
+                val result = runCatching {
+                    val content = onBuildCsv()
+                    writeTextToUri(appContext, uri, content).getOrThrow()
+                }
+                result.onSuccess { bytes ->
+                    onNotifyMessage("Exported CSV ($bytes bytes)")
+                }.onFailure { err ->
+                    onNotifyMessage("Failed to write CSV: ${err.message ?: "Unknown error"}")
+                }
             }
         }
     }
@@ -134,10 +141,17 @@ fun SettingsScreen(
         contract = ActivityResultContracts.CreateDocument("application/vnd.ms-excel")
     ) { uri: Uri? ->
         if (uri != null) {
+            val appContext = context.applicationContext
             scope.launch {
-                val content = onBuildExcelXml()
-                val ok = writeTextToUri(context, uri, content)
-                onNotifyMessage(if (ok) "Exported Excel workbook (.xls)" else "Failed to write Excel file")
+                val result = runCatching {
+                    val content = onBuildExcelXml()
+                    writeTextToUri(appContext, uri, content).getOrThrow()
+                }
+                result.onSuccess { bytes ->
+                    onNotifyMessage("Exported Excel workbook ($bytes bytes)")
+                }.onFailure { err ->
+                    onNotifyMessage("Failed to write Excel file: ${err.message ?: "Unknown error"}")
+                }
             }
         }
     }
@@ -146,10 +160,17 @@ fun SettingsScreen(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri: Uri? ->
         if (uri != null) {
+            val appContext = context.applicationContext
             scope.launch {
-                val content = onBuildJsonBackup()
-                val ok = writeTextToUri(context, uri, content)
-                onNotifyMessage(if (ok) "Saved JSON database backup" else "Failed to write backup")
+                val result = runCatching {
+                    val content = onBuildJsonBackup()
+                    writeTextToUri(appContext, uri, content).getOrThrow()
+                }
+                result.onSuccess { bytes ->
+                    onNotifyMessage("Saved JSON backup ($bytes bytes)")
+                }.onFailure { err ->
+                    onNotifyMessage("Failed to write backup: ${err.message ?: "Unknown error"}")
+                }
             }
         }
     }
@@ -158,13 +179,15 @@ fun SettingsScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         if (uri != null) {
+            val appContext = context.applicationContext
             scope.launch {
-                val content = readTextFromUri(context, uri)
-                if (content != null) {
-                    onRestoreBackupJson(content)
-                } else {
-                    onNotifyMessage("Unable to read selected backup file")
-                }
+                readTextFromUri(appContext, uri)
+                    .onSuccess { content ->
+                        onRestoreBackupJson(content)
+                    }
+                    .onFailure { err ->
+                        onNotifyMessage(err.message ?: "Unable to read selected backup file")
+                    }
             }
         }
     }
@@ -818,27 +841,91 @@ private fun CategoryManagerRow(
     }
 }
 
-private suspend fun writeTextToUri(context: Context, uri: Uri, content: String): Boolean =
-    withContext(Dispatchers.IO) {
-        try {
-            context.contentResolver.openOutputStream(uri)?.use { stream ->
-                stream.write(content.toByteArray(Charsets.UTF_8))
-                stream.flush()
+private suspend fun writeTextToUri(context: Context, uri: Uri, content: String): Result<Int> =
+    withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) {
+        runCatching {
+            val bytes = content.toByteArray(Charsets.UTF_8)
+            require(bytes.isNotEmpty()) { "Generated export content was empty" }
+
+            val resolver = context.contentResolver
+            val modes = listOf("wt", "w")
+            var written = false
+
+            for (mode in modes) {
+                val stream = try {
+                    resolver.openOutputStream(uri, mode)
+                } catch (_: Exception) {
+                    null
+                }
+                if (stream != null) {
+                    stream.use { out ->
+                        out.write(bytes)
+                        out.flush()
+                        if (out is java.io.FileOutputStream) {
+                            try {
+                                out.fd.sync()
+                            } catch (_: Exception) {
+                                // Pipe-backed providers (such as cloud providers) do not support fsync
+                            }
+                        }
+                    }
+                    written = true
+                    break
+                }
             }
-            true
-        } catch (_: Exception) {
-            false
+
+            if (!written) {
+                val defaultStream = resolver.openOutputStream(uri)
+                if (defaultStream != null) {
+                    defaultStream.use { out ->
+                        out.write(bytes)
+                        out.flush()
+                        if (out is java.io.FileOutputStream) {
+                            try {
+                                out.fd.sync()
+                            } catch (_: Exception) {
+                            }
+                        }
+                    }
+                    written = true
+                }
+            }
+
+            if (!written) {
+                val pfd = try {
+                    resolver.openFileDescriptor(uri, "wt")
+                } catch (_: Exception) {
+                    null
+                } ?: resolver.openFileDescriptor(uri, "w")
+
+                if (pfd != null) {
+                    pfd.use { descriptor ->
+                        java.io.FileOutputStream(descriptor.fileDescriptor).use { out ->
+                            out.write(bytes)
+                            out.flush()
+                            try {
+                                out.fd.sync()
+                            } catch (_: Exception) {
+                            }
+                        }
+                    }
+                    written = true
+                }
+            }
+
+            check(written) { "Storage provider did not return a writable file stream" }
+            bytes.size
         }
     }
 
-private suspend fun readTextFromUri(context: Context, uri: Uri): String? =
+private suspend fun readTextFromUri(context: Context, uri: Uri): Result<String> =
     withContext(Dispatchers.IO) {
-        try {
-            context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use {
-                it.readText()
-            }
-        } catch (_: Exception) {
-            null
+        runCatching {
+            val stream = context.contentResolver.openInputStream(uri)
+                ?: throw IllegalStateException("Storage provider could not open the selected file")
+            val text = stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+            require(text.isNotBlank()) { "Selected backup file is empty (0 bytes)" }
+            text
         }
     }
 
@@ -1007,11 +1094,21 @@ private suspend fun shareBackupToGoogleDrive(
     fileName: String,
     jsonContent: String
 ): Boolean {
-    val fileUri = withContext(Dispatchers.IO) {
+    val fileUri = withContext(kotlinx.coroutines.NonCancellable + Dispatchers.IO) {
         try {
+            val bytes = jsonContent.toByteArray(Charsets.UTF_8)
+            if (bytes.isEmpty()) return@withContext null
             val backupDir = java.io.File(context.cacheDir, "backups").apply { mkdirs() }
             val outFile = java.io.File(backupDir, fileName)
-            outFile.writeText(jsonContent, Charsets.UTF_8)
+            java.io.FileOutputStream(outFile).use { out ->
+                out.write(bytes)
+                out.flush()
+                try {
+                    out.fd.sync()
+                } catch (_: Exception) {
+                }
+            }
+            if (outFile.length() <= 0L) return@withContext null
             FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",
@@ -1029,18 +1126,43 @@ private suspend fun shareBackupToGoogleDrive(
             putExtra(Intent.EXTRA_SUBJECT, fileName)
             clipData = android.content.ClipData.newRawUri(fileName, fileUri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (context !is android.app.Activity) {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
         }
+        // Grant explicit read permission to Google Drive and resolved share targets
+        val resolved = context.packageManager.queryIntentActivities(sendIntent, 0)
+        resolved.forEach { info ->
+            try {
+                context.grantUriPermission(
+                    info.activityInfo.packageName,
+                    fileUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: Exception) {
+            }
+        }
+
         // Prefer Google Drive directly if installed on the user's device; otherwise open system chooser
         val driveIntent = Intent(sendIntent).apply {
             setPackage("com.google.android.apps.docs")
         }
         if (driveIntent.resolveActivity(context.packageManager) != null) {
+            try {
+                context.grantUriPermission(
+                    "com.google.android.apps.docs",
+                    fileUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: Exception) {
+            }
             context.startActivity(driveIntent)
         } else {
             val chooser = Intent.createChooser(sendIntent, "Save backup to Google Drive").apply {
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                if (context !is android.app.Activity) {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
             }
             context.startActivity(chooser)
         }
