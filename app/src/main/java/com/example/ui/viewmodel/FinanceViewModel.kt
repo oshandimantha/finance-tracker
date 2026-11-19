@@ -37,6 +37,7 @@ import kotlinx.coroutines.launch
 sealed interface FinanceEvent {
     data class ShowMessage(val message: String) : FinanceEvent
     data class TransactionDeleted(val transaction: TransactionEntity) : FinanceEvent
+    data class TransactionsBulkDeleted(val transactions: List<TransactionEntity>) : FinanceEvent
 }
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -56,7 +57,7 @@ class FinanceViewModel(
     private val _analyticsYear = MutableStateFlow(FinanceFormatter.defaultYear())
     private val _analyticsCategoryId = MutableStateFlow<Long?>(null)
 
-    private val _events = MutableSharedFlow<FinanceEvent>()
+    private val _events = MutableSharedFlow<FinanceEvent>(extraBufferCapacity = 16)
     val events: SharedFlow<FinanceEvent> = _events.asSharedFlow()
 
     private val allTransactionsFlow = repository.observeAllTransactions()
@@ -127,9 +128,9 @@ class FinanceViewModel(
             }
             .sortedByDescending { it.amount }
 
-        // MoM comparison: use selected month/year, or current month/year if "All" is selected
+        // MoM comparison: use selected month/year, or most recent month in filtered period
         val refYear = period.year ?: FinanceFormatter.defaultYear()
-        val refMonth = period.month ?: allTx.firstOrNull()?.month ?: FinanceFormatter.currentMonthAbbrev()
+        val refMonth = period.month ?: filteredTx.firstOrNull()?.month ?: FinanceFormatter.currentMonthAbbrev()
         val (prevMonth, prevYear) = FinanceFormatter.previousMonthYear(refMonth, refYear)
 
         val currMonthTx = allTx.filter { it.year == refYear && it.month == refMonth }
@@ -407,6 +408,38 @@ class FinanceViewModel(
     fun undoDeleteTransaction(transaction: TransactionEntity) {
         viewModelScope.launch {
             repository.insertTransaction(transaction)
+        }
+    }
+
+    fun deleteTransactions(transactions: List<TransactionEntity>) {
+        if (transactions.isEmpty()) return
+        viewModelScope.launch {
+            repository.deleteTransactions(transactions)
+            _events.emit(FinanceEvent.TransactionsBulkDeleted(transactions))
+        }
+    }
+
+    fun undoDeleteTransactions(transactions: List<TransactionEntity>) {
+        if (transactions.isEmpty()) return
+        viewModelScope.launch {
+            repository.insertTransactions(transactions)
+            _events.emit(FinanceEvent.ShowMessage("Restored ${transactions.size} transactions"))
+        }
+    }
+
+    fun bulkUpdateTransactionsCategory(
+        transactionIds: List<Long>,
+        categoryId: Long,
+        type: TransactionType
+    ) {
+        if (transactionIds.isEmpty()) return
+        viewModelScope.launch {
+            repository.bulkUpdateTransactionsCategory(transactionIds, categoryId, type)
+            _events.emit(
+                FinanceEvent.ShowMessage(
+                    "Updated ${transactionIds.size} ${if (transactionIds.size == 1) "entry" else "entries"}"
+                )
+            )
         }
     }
 

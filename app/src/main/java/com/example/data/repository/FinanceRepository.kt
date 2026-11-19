@@ -22,8 +22,15 @@ interface FinanceRepository {
 
     suspend fun ensureSeededCategories()
     suspend fun insertTransaction(transaction: TransactionEntity): Long
+    suspend fun insertTransactions(transactions: List<TransactionEntity>)
     suspend fun updateTransaction(transaction: TransactionEntity)
     suspend fun deleteTransaction(transaction: TransactionEntity)
+    suspend fun deleteTransactions(transactions: List<TransactionEntity>)
+    suspend fun bulkUpdateTransactionsCategory(
+        transactionIds: List<Long>,
+        categoryId: Long,
+        type: TransactionType
+    )
 
     suspend fun upsertBudget(categoryId: Long, year: Int, month: String, monthlyLimit: Double)
     suspend fun copyPreviousMonthBudgets(targetYear: Int, targetMonth: String): Int
@@ -90,11 +97,39 @@ class RoomFinanceRepository(
     override suspend fun insertTransaction(transaction: TransactionEntity): Long =
         transactionDao.insertTransaction(transaction)
 
+    override suspend fun insertTransactions(transactions: List<TransactionEntity>) {
+        if (transactions.isNotEmpty()) {
+            transactionDao.insertTransactions(transactions)
+        }
+    }
+
     override suspend fun updateTransaction(transaction: TransactionEntity) =
         transactionDao.updateTransaction(transaction)
 
     override suspend fun deleteTransaction(transaction: TransactionEntity) =
         transactionDao.deleteTransaction(transaction)
+
+    override suspend fun deleteTransactions(transactions: List<TransactionEntity>) {
+        if (transactions.isEmpty()) return
+        database.withTransaction {
+            transactions.map { it.id }.chunked(500).forEach { chunk ->
+                transactionDao.deleteTransactionsByIds(chunk)
+            }
+        }
+    }
+
+    override suspend fun bulkUpdateTransactionsCategory(
+        transactionIds: List<Long>,
+        categoryId: Long,
+        type: TransactionType
+    ) {
+        if (transactionIds.isEmpty()) return
+        database.withTransaction {
+            transactionIds.chunked(500).forEach { chunk ->
+                transactionDao.updateTransactionsCategoryAndType(chunk, categoryId, type)
+            }
+        }
+    }
 
     override suspend fun upsertBudget(
         categoryId: Long,

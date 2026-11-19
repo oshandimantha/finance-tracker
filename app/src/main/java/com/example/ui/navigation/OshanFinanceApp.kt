@@ -70,6 +70,8 @@ import com.example.ui.viewmodel.FinanceEvent
 import com.example.ui.viewmodel.FinanceViewModel
 import com.example.ui.viewmodel.SettingsViewModel
 import com.example.ui.viewmodel.TransactionsUiState
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -99,22 +101,38 @@ fun OshanFinanceApp(
     var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
 
     LaunchedEffect(Unit) {
+        var snackbarJob: Job? = null
         viewModel.events.collect { event ->
-            when (event) {
-                is FinanceEvent.ShowMessage -> {
-                    snackbarHostState.showSnackbar(
-                        message = event.message,
-                        duration = SnackbarDuration.Short
-                    )
-                }
-                is FinanceEvent.TransactionDeleted -> {
-                    val result = snackbarHostState.showSnackbar(
-                        message = "Deleted \"${event.transaction.description}\"",
-                        actionLabel = "Undo",
-                        duration = SnackbarDuration.Long
-                    )
-                    if (result == SnackbarResult.ActionPerformed) {
-                        viewModel.undoDeleteTransaction(event.transaction)
+            snackbarJob?.cancel()
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarJob = launch {
+                when (event) {
+                    is FinanceEvent.ShowMessage -> {
+                        snackbarHostState.showSnackbar(
+                            message = event.message,
+                            duration = SnackbarDuration.Short
+                        )
+                    }
+                    is FinanceEvent.TransactionDeleted -> {
+                        val result = snackbarHostState.showSnackbar(
+                            message = "Deleted \"${event.transaction.description}\"",
+                            actionLabel = "Undo",
+                            duration = SnackbarDuration.Long
+                        )
+                        if (result == SnackbarResult.ActionPerformed) {
+                            viewModel.undoDeleteTransaction(event.transaction)
+                        }
+                    }
+                    is FinanceEvent.TransactionsBulkDeleted -> {
+                        val count = event.transactions.size
+                        val result = snackbarHostState.showSnackbar(
+                            message = "Deleted $count ${if (count == 1) "transaction" else "transactions"}",
+                            actionLabel = "Undo",
+                            duration = SnackbarDuration.Long
+                        )
+                        if (result == SnackbarResult.ActionPerformed) {
+                            viewModel.undoDeleteTransactions(event.transactions)
+                        }
                     }
                 }
             }
@@ -130,6 +148,15 @@ fun OshanFinanceApp(
             onDismiss = {
                 showTransactionSheet = false
                 editingTransaction = null
+            },
+            onDelete = if (editingTransaction != null) {
+                { tx ->
+                    viewModel.deleteTransaction(tx)
+                    showTransactionSheet = false
+                    editingTransaction = null
+                }
+            } else {
+                null
             },
             onSave = { id, date, desc, catId, type, amount, notes ->
                 viewModel.saveTransaction(id, date, desc, catId, type, amount, notes)
@@ -152,10 +179,22 @@ fun OshanFinanceApp(
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val useNavigationRail = maxWidth >= 600.dp
 
+        val snackbarBottomPadding = when (currentDestination) {
+            AppDestination.TRANSACTIONS,
+            AppDestination.BUDGET,
+            AppDestination.GOALS -> 76.dp
+            else -> 0.dp
+        }
+
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             contentWindowInsets = WindowInsets.safeDrawing,
-            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+            snackbarHost = {
+                SnackbarHost(
+                    hostState = snackbarHostState,
+                    modifier = Modifier.padding(bottom = snackbarBottomPadding)
+                )
+            },
             topBar = {
                 CenterAlignedTopAppBar(
                     title = {
@@ -326,7 +365,9 @@ fun OshanFinanceApp(
                                     editingTransaction = tx
                                     showTransactionSheet = true
                                 },
-                                onDeleteTransaction = viewModel::deleteTransaction
+                                onDeleteTransaction = viewModel::deleteTransaction,
+                                onBulkDeleteTransactions = viewModel::deleteTransactions,
+                                onBulkUpdateCategory = viewModel::bulkUpdateTransactionsCategory
                             )
                         }
                         composable(AppDestination.BUDGET.route) {

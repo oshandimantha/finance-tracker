@@ -19,8 +19,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CalendarToday
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
@@ -29,6 +32,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -67,6 +71,7 @@ fun TransactionEditorSheet(
     existingTransaction: TransactionEntity?,
     categories: List<CategoryEntity>,
     onDismiss: () -> Unit,
+    onDelete: ((TransactionEntity) -> Unit)? = null,
     onSave: (
         existingId: Long?,
         dateMillis: Long,
@@ -115,6 +120,7 @@ fun TransactionEditorSheet(
     }
 
     var showDatePicker by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
     var categoryExpanded by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf<String?>(null) }
 
@@ -149,6 +155,38 @@ fun TransactionEditorSheet(
         }
     }
 
+    if (showDeleteConfirm && existingTransaction != null && onDelete != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Delete Transaction?") },
+            text = {
+                Text(
+                    "Remove \"${existingTransaction.description}\" (${FinanceFormatter.formatLkr(existingTransaction.amount)}) from your ledger?"
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteConfirm = false
+                        onDelete(existingTransaction)
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    ),
+                    modifier = Modifier.testTag("tx_sheet_confirm_delete_button")
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -162,10 +200,28 @@ fun TransactionEditorSheet(
                 .padding(bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text(
-                text = if (existingTransaction == null) "Add Transaction" else "Edit Transaction",
-                style = MaterialTheme.typography.headlineSmall
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (existingTransaction == null) "Add Transaction" else "Edit Transaction",
+                    style = MaterialTheme.typography.headlineSmall
+                )
+                if (existingTransaction != null && onDelete != null) {
+                    IconButton(
+                        onClick = { showDeleteConfirm = true },
+                        modifier = Modifier.testTag("tx_sheet_delete_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.DeleteOutline,
+                            contentDescription = "Delete transaction",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
 
             // Type Chips with color badges
             Text(

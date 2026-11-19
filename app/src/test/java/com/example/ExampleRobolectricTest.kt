@@ -20,6 +20,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -124,5 +129,47 @@ class ExampleRobolectricTest {
         assertEquals(snapshot.categories.size, parsed.categories.size)
         assertEquals(snapshot.budgets.size, parsed.budgets.size)
         assertEquals(snapshot.goals.size, parsed.goals.size)
+    }
+
+    @org.junit.Rule
+    @JvmField
+    val composeRule = androidx.compose.ui.test.junit4.createComposeRule()
+
+    @Test
+    fun `category editor dialog renders and switches icon filters without crashing`() {
+        var savedName: String? = null
+        var savedIcon: String? = null
+        composeRule.setContent {
+            com.example.ui.theme.OshanFinanceTheme {
+                com.example.ui.components.CategoryEditorDialog(
+                    existingCategory = null,
+                    onDismiss = {},
+                    onSave = { _, name, _, _, icon, _ ->
+                        savedName = name
+                        savedIcon = icon
+                    }
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNode(hasText("Business")).performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("category_icon_storefront").performScrollTo().performClick()
+        composeRule.onNode(hasText("Personal")).performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNode(hasText("All", substring = true)).performScrollTo().performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("category_name_input").performScrollTo().performTextInput("Office Rent")
+        composeRule.onNodeWithTag("category_save_button").performClick()
+        assertEquals("Office Rent", savedName)
+        assertEquals("storefront", savedIcon)
+    }
+
+    @Test
+    fun `main activity cold launch renders without crashing`() {
+        val controller = org.robolectric.Robolectric.buildActivity(MainActivity::class.java).setup()
+        val activity = controller.get()
+        assertTrue(!activity.isFinishing)
+        controller.pause().stop().destroy()
     }
 }

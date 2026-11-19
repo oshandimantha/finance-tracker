@@ -18,24 +18,36 @@ object FinanceFormatter {
 
     val YEARS = (2020..2050).toList()
 
-    private val currencyFormat = DecimalFormat("#,##0.00", DecimalFormatSymbols(Locale.US))
-    private val wholeFormat = DecimalFormat("#,##0", DecimalFormatSymbols(Locale.US))
-    private val dateHeaderFormat = SimpleDateFormat("EEE, dd MMM yyyy", Locale.US)
-    private val shortDateFormat = SimpleDateFormat("dd MMM yyyy", Locale.US)
-    private val isoDateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+    private val currencyFormat = ThreadLocal.withInitial {
+        DecimalFormat("#,##0.00", DecimalFormatSymbols(Locale.US))
+    }
+    private val wholeFormat = ThreadLocal.withInitial {
+        DecimalFormat("#,##0", DecimalFormatSymbols(Locale.US))
+    }
+    private val dateHeaderFormat = ThreadLocal.withInitial {
+        SimpleDateFormat("EEE, dd MMM yyyy", Locale.US)
+    }
+    private val shortDateFormat = ThreadLocal.withInitial {
+        SimpleDateFormat("dd MMM yyyy", Locale.US)
+    }
+    private val isoDateFormat = ThreadLocal.withInitial {
+        SimpleDateFormat("yyyy-MM-dd", Locale.US)
+    }
 
     fun formatLkr(amount: Double): String {
+        val fmt = currencyFormat.get()!!
         return if (amount < 0.0) {
-            "-Rs ${currencyFormat.format(abs(amount))}"
+            "-Rs ${fmt.format(abs(amount))}"
         } else {
-            "Rs ${currencyFormat.format(amount)}"
+            "Rs ${fmt.format(amount)}"
         }
     }
 
     fun formatSignedLkr(amount: Double): String {
+        val fmt = currencyFormat.get()!!
         return when {
-            amount > 0.0 -> "+Rs ${currencyFormat.format(amount)}"
-            amount < 0.0 -> "-Rs ${currencyFormat.format(abs(amount))}"
+            amount > 0.0 -> "+Rs ${fmt.format(amount)}"
+            amount < 0.0 -> "-Rs ${fmt.format(abs(amount))}"
             else -> "Rs 0.00"
         }
     }
@@ -46,7 +58,7 @@ object FinanceFormatter {
         return when {
             absVal >= 1_000_000.0 -> "${sign}Rs ${String.format(Locale.US, "%.1fM", absVal / 1_000_000.0)}"
             absVal >= 1_000.0 -> "${sign}Rs ${String.format(Locale.US, "%.1fk", absVal / 1_000.0)}"
-            else -> "${sign}Rs ${wholeFormat.format(absVal)}"
+            else -> "${sign}Rs ${wholeFormat.get()!!.format(absVal)}"
         }
     }
 
@@ -55,15 +67,15 @@ object FinanceFormatter {
     }
 
     fun formatDateHeader(timestamp: Long): String {
-        return dateHeaderFormat.format(Date(timestamp))
+        return dateHeaderFormat.get()!!.format(Date(timestamp))
     }
 
     fun formatShortDate(timestamp: Long): String {
-        return shortDateFormat.format(Date(timestamp))
+        return shortDateFormat.get()!!.format(Date(timestamp))
     }
 
     fun formatIsoDate(timestamp: Long): String {
-        return isoDateFormat.format(Date(timestamp))
+        return isoDateFormat.get()!!.format(Date(timestamp))
     }
 
     fun extractMonthAndYear(timestamp: Long): Pair<String, Int> {

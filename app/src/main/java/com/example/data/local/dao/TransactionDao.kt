@@ -51,6 +51,16 @@ interface TransactionDao {
     @Query("DELETE FROM transactions WHERE id = :id")
     suspend fun deleteTransactionById(id: Long)
 
+    @Query("DELETE FROM transactions WHERE id IN (:ids)")
+    suspend fun deleteTransactionsByIds(ids: List<Long>)
+
+    @Query("UPDATE transactions SET categoryId = :categoryId, type = :type WHERE id IN (:ids)")
+    suspend fun updateTransactionsCategoryAndType(
+        ids: List<Long>,
+        categoryId: Long,
+        type: com.example.domain.model.TransactionType
+    )
+
     @Query("DELETE FROM transactions")
     suspend fun deleteAllTransactions()
 }

@@ -11,6 +11,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -148,7 +150,11 @@ private fun AppLockOverlay(
         )
         if (intent != null) {
             errorMessage = null
-            authLauncher.launch(intent)
+            try {
+                authLauncher.launch(intent)
+            } catch (_: Exception) {
+                errorMessage = "Device lock screen unavailable. Tap Unlock to retry."
+            }
         } else {
             onUnlocked()
         }
@@ -158,9 +164,15 @@ private fun AppLockOverlay(
         launchDeviceUnlock()
     }
 
+    val blockerInteraction = remember { MutableInteractionSource() }
     Surface(
         modifier = Modifier
             .fillMaxSize()
+            .clickable(
+                interactionSource = blockerInteraction,
+                indication = null,
+                onClick = {}
+            )
             .testTag("app_lock_overlay"),
         color = MaterialTheme.colorScheme.background
     ) {
